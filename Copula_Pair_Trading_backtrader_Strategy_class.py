@@ -4,6 +4,7 @@ import scipy.stats as stats
 import scipy
 import sys
 from statsmodels.distributions.empirical_distribution import ECDF
+import statsmodels as sm
 
 class CopulaStrat(bt.Strategy):
 
@@ -54,8 +55,6 @@ class CopulaStrat(bt.Strategy):
             elif v[i] == 1:
 
                 v[i] = 1 - 1/n * 1/2
-
-
 
         # Computing the likelihood of the observed data
 
@@ -226,32 +225,45 @@ class CopulaStrat(bt.Strategy):
 
             # We re-selected the traded pair with highest kendalltau based on last 30 days log_ret
 
-            for i in range(len(self.datas)-1):
-                for j in range(i+1 , len(self.datas)):
+            asset_name = []
+            asset_log_ret = []
+            asset_ECDF = []
+            uniformed_transformed_log_ret = []
 
-                    first_asset_price = []
-                    second_asset_price = []
+            for data in self.datas :
 
-                    for day in range(-1 * (self.params.sample_window) , 1):
+                asset_price = []
 
-                        first_asset_price.append(self.datas[i].close[day])
-                        second_asset_price.append(self.datas[j].close[day])
+                for day in range(-1 * (self.params.sample_window) , 1):
 
-                    if sum(np.array(first_asset_price)<0.01) > 0 or sum(np.array(second_asset_price)<0.01) > 0:
+                    asset_price.append(data.close[day])
 
-                        continue
+                if sum(np.array(asset_price) < 0.01) > 0:
+                    continue
 
-                    first_asset_log_ret = np.log(first_asset_price[1:]) - np.log(first_asset_price[:-1])
+                # Computing the log ret for the sample data
+                log_ret = np.log(asset_price[1:]) - np.log(asset_price[:-1])
+                # Estimate the Empirical CDF of the log ret
+                ECDF = ECDF(asset_log_ret)
+                # Transforming the log ret to the uniform variable
+                u = ECDF(asset_log_ret)
 
-                    second_asset_log_ret = np.log(second_asset_price[1:]) - np.log(second_asset_price[:-1])
+                # Testing whether the log ret are independent
+                test = sm.tsa.stattools.acf(u,nlags = self.params.sample_window/3 ,qstat = True)
 
-                    # Computing the ECDF of the selected sample for estimating the input of Copula
+                if (test[2][-1] < 0.05):
+                    continue
 
-                    first_asset_ECDF = ECDF(first_asset_log_ret)
-                    second_asset_ECDF = ECDF(second_asset_log_ret)
+                asset_name.append(data._name)
+                asset_log_ret.append(log_ret)
+                asset_ECDF.append(ECDF)
+                uniformed_transformed_log_ret.append(u)
 
-                    u = first_asset_ECDF(first_asset_log_ret)
-                    v = second_asset_ECDF(second_asset_log_ret)
+            for i in range(len(asset_name)-1):
+                for j in range(i+1 , len(asset_name)):
+
+                    u = uniformed_transformed_log_ret[i]
+                    v = uniformed_transformed_log_ret[j]
 
                     tau_ = stats.kendalltau(u,v)[0]
 
@@ -259,11 +271,11 @@ class CopulaStrat(bt.Strategy):
 
                         tau = tau_
 
-                        self.selected_pair = [self.datas[i]._name , self.datas[j]._name]
-                        self.first_asset_sample = first_asset_log_ret
-                        self.second_asset_sample = second_asset_log_ret
-                        self.first_asset_ECDF = first_asset_ECDF
-                        self.second_asset_ECDF = second_asset_ECDF
+                        self.selected_pair = [asset_name[i] , asset_name[j]]
+                        self.first_asset_sample = asset_log_ret[i]
+                        self.second_asset_sample = asset_log_ret[j]
+                        self.first_asset_ECDF = asset_ECDF[i]
+                        self.second_asset_ECDF = asset_ECDF[j]
 
             self.log('Selected pair %s & %s' %(self.selected_pair[0], self.selected_pair[1]))
 
@@ -333,8 +345,8 @@ class CopulaStrat(bt.Strategy):
             # Close the Position if the divergenece disappear
 
             if ((self.getposition(first_asset).size > 0) and ((marginal_copula_X_given_Y > self.params.copula_threshold) and (marginal_copula_Y_given_X < 1 - self.params.copula_threshold))):
-                self.close(first_asset)
-                self.close(second_asset)
+                self.close(first_asset, exectype=bt.Order.Market)
+                self.close(second_asset, exectype=bt.Order.Market)
 
                 self.log('Close Position : Long %s & Short %s' % (first_asset._name ,second_asset._name))
 
