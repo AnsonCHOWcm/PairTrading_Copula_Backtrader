@@ -60,7 +60,7 @@ class CopulaStrat(bt.Strategy):
 
         if copula == 'Clayton':
 
-            Likelihood = sum((theta + 1)*(u ** (-1*theta) + v ** (-1*theta) - 1) ** (-2-1/theta) * u ** (-1 * theta - 1) * v ** (-1 * theta - 1))
+            Likelihood = sum(np.log((theta + 1)*(u ** (-1*theta) + v ** (-1*theta) - 1) ** (-2-1/theta) * u ** (-1 * theta - 1) * v ** (-1 * theta - 1)))
 
         elif copula == 'Gumbel':
 
@@ -68,11 +68,11 @@ class CopulaStrat(bt.Strategy):
 
             C = np.exp(-1 * (A) ** 1/theta)
 
-            Likelihood = sum(C * (u * v) ** (-1) * A ** (-2 + 2/theta) * (np.log(u) * np.log(v)) ** (theta - 1) * (1 + (theta - 1) * A ** (-1/theta)))
+            Likelihood = sum(np.log(C * (u * v) ** (-1) * A ** (-2 + 2/theta) * (np.log(u) * np.log(v)) ** (theta - 1) * (1 + (theta - 1) * A ** (-1/theta))))
 
         elif copula == 'Frank':
 
-            Likelihood = sum((theta * (np.exp(-1 * theta) - 1) * (np.exp(-1 * theta * (u + v))))/(np.exp(-1*theta*u - 1) * np.exp(-1*theta*v - 1) + (np.exp(-1 * theta) - 1)) ** 2)
+            Likelihood = sum(np.log((theta * (np.exp(-1 * theta) - 1) * (np.exp(-1 * theta * (u + v))))/(np.exp(-1*theta*u - 1) * np.exp(-1*theta*v - 1) + (np.exp(-1 * theta) - 1)) ** 2))
 
         return (-2 * Likelihood + 2)
 
@@ -156,27 +156,70 @@ class CopulaStrat(bt.Strategy):
 
         if copula == 'Clayton':
 
-            marginal_copula_X_given_Y = input_v ** (-1 * self.theta -1) * (
-                                        input_u ** (-1 * self.theta) + input_v ** (-1 * self.theta) -1) ** (-1/self.theta -1)
+            density_function_input_u = lambda u : (self.theta + 1) * (u ** (-1 * self.theta) + input_v ** (-1 * self.theta) - 1) ** (-2 - 1/self.theta) * u ** (
+                        -1 * self.theta - 1) * input_v ** (-1 * self.theta - 1)
 
-            marginal_copula_Y_given_X = input_u ** (-1 * self.theta - 1) * (
-                                        input_u ** (-1 * self.theta) + input_v ** (-1 * self.theta) - 1) ** (-1/self.theta - 1)
+            density_function_input_v = lambda v: (self.theta + 1) * (input_u ** (-1 * self.theta) + v ** (-1 * self.theta) - 1) ** (-2 - 1/self.theta) * input_u ** (
+                                                         -1 * self.theta - 1) * v ** (-1 * self.theta - 1)
+
+            d_C_d_v = input_v ** (-1 * self.theta -1) * (input_u ** (-1 * self.theta) + input_v ** (-1 * self.theta) -1) ** (-1/self.theta -1)
+
+            d_C_d_u = input_u ** (-1 * self.theta - 1) * (input_u ** (-1 * self.theta) + input_v ** (-1 * self.theta) - 1) ** (-1/self.theta - 1)
+
+            In_c_du = scipy.integrate.quad(density_function_input_u , sys.float_info.epsilon , 1)[0]
+
+            In_c_dv = scipy.integrate.quad(density_function_input_v, sys.float_info.epsilon, 1)[0]
+
+            marginal_copula_X_given_Y = d_C_d_v/In_c_du
+
+            marginal_copula_Y_given_X = d_C_d_u/In_c_dv
+
 
         elif copula == 'Gumbel':
 
+            A_input_u = lambda u : (-1 * np.log(u)) ** self.theta + (-1 * np.log(input_v)) ** self.theta
+            A_input_v = lambda v : (-1 * np.log(input_u)) ** self.theta + (-1 * np.log(v)) ** self.theta
+
+            C_input_u = lambda u : np.exp(-1 * (A_input_u(u)) ** 1/self.theta)
+            C_input_v = lambda v : np.exp(-1 * (A_input_v(v)) ** 1/self.theta)
+
+            density_function_input_u = lambda u : C_input_u(u) * (u * input_v) ** (-1) * A_input_u(u) ** (-2 + 2/self.theta) * (np.log(u) * np.log(input_v)) ** (self.theta - 1) * (1 + (self.theta - 1) * A_input_u(u) ** (-1/self.theta))
+
+            density_function_input_v = lambda v : C_input_v(v) * (input_u * v) ** (-1) * A_input_v(v) ** (-2 + 2/self.theta) * (np.log(input_u) * np.log(v)) ** (self.theta - 1) * (1 + (self.theta - 1) * A_input_v(v) ** (-1/self.theta))
+
             A = (-1 * np.log(input_u)) ** self.theta + (-1 * np.log(input_v)) ** self.theta
 
-            C = np.exp(-1 * (A) ** 1/self.theta)
+            C = np.exp(-1 * (A) ** 1 / self.theta)
 
-            marginal_copula_X_given_Y = C * (A) ** ((1-self.theta)/self.theta) * (-1*np.log(input_v)) ** (self.theta - 1) * 1/input_v
+            d_C_d_v = C * (A) ** ((1-self.theta)/self.theta) * (-1*np.log(input_v)) ** (self.theta - 1) * 1/input_v
 
-            marginal_copula_Y_given_X = C * (A) ** ((1-self.theta)/self.theta) * (-1*np.log(input_u)) ** (self.theta - 1) * 1/input_u
+            d_C_d_u = C * (A) ** ((1-self.theta)/self.theta) * (-1*np.log(input_u)) ** (self.theta - 1) * 1/input_u
+
+            In_c_du = scipy.integrate.quad(density_function_input_u, sys.float_info.epsilon, 1)[0]
+
+            In_c_dv = scipy.integrate.quad(density_function_input_v, sys.float_info.epsilon, 1)[0]
+
+            marginal_copula_X_given_Y = d_C_d_v/In_c_du
+
+            marginal_copula_Y_given_X = d_C_d_u/In_c_dv
 
         elif copula == 'Frank':
 
-            marginal_copula_X_given_Y = np.exp(-1 * self.theta * input_v) * (np.exp(-1 * self.theta * input_u) -1 )/(np.exp(-1*self.theta)-1 + (np.exp(self.theta*input_u)-1)*(np.exp(self.theta*input_v)-1))
+            density_function_input_u = lambda u: (self.theta * (np.exp(-1 * self.theta) - 1) * (np.exp(-1 * self.theta * (u + input_v))))/(np.exp(-1*self.theta*u - 1) * np.exp(-1*self.theta*input_v - 1) + (np.exp(-1 * self.theta) - 1)) ** 2
 
-            marginal_copula_Y_given_X = np.exp(-1 * self.theta * input_u) * (np.exp(-1 * self.theta * input_v) -1 )/(np.exp(-1*self.theta)-1 + (np.exp(self.theta*input_u)-1)*(np.exp(self.theta*input_v)-1))
+            density_function_input_v = lambda v: (self.theta * (np.exp(-1 * self.theta) - 1) * (np.exp(-1 * self.theta * (input_u + v))))/(np.exp(-1*self.theta*input_u - 1) * np.exp(-1*self.theta*v - 1) + (np.exp(-1 * self.theta) - 1)) ** 2
+
+            d_C_d_v = np.exp(-1 * self.theta * input_v) * (np.exp(-1 * self.theta * input_u) -1 )/(np.exp(-1*self.theta)-1 + (np.exp(self.theta*input_u)-1)*(np.exp(self.theta*input_v)-1))
+
+            d_C_d_u = np.exp(-1 * self.theta * input_u) * (np.exp(-1 * self.theta * input_v) -1 )/(np.exp(-1*self.theta)-1 + (np.exp(self.theta*input_u)-1)*(np.exp(self.theta*input_v)-1))
+
+            In_c_du = scipy.integrate.quad(density_function_input_u, sys.float_info.epsilon, 1)[0]
+
+            In_c_dv = scipy.integrate.quad(density_function_input_v, sys.float_info.epsilon, 1)[0]
+
+            marginal_copula_X_given_Y = d_C_d_v/In_c_du
+
+            marginal_copula_Y_given_X = d_C_d_u/In_c_dv
 
         return marginal_copula_X_given_Y , marginal_copula_Y_given_X
 
