@@ -1,5 +1,6 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 from Copula_Pair_Trading_backtrader_Strategy_class import *
+from PerformanceTracker import *
 import glob
 import pandas as pd
 import datetime
@@ -40,7 +41,7 @@ if __name__ == '__main__':
 
     else :
 
-        params_set = [360*24]
+        params_set = [300*24]
 
     for window in params_set:
 
@@ -74,10 +75,8 @@ if __name__ == '__main__':
         for data in cerebro.datas:
             data.plotinfo.plot = False
 
-        cerebro.addanalyzer(bt.analyzers.SharpeRatio_A, _name='sharpe')
-        cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+        cerebro.addanalyzer(PortfolioPerformance, _name='portfolioperformance', annualizedperiod=365*24)
         cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='tradeanalyzer')
-        cerebro.addanalyzer(bt.analyzers.Returns, _name = 'ret' ,tann = 365*24)
 
         print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
@@ -90,21 +89,17 @@ if __name__ == '__main__':
 
         print('*******Strategy Performance**********')
 
-        ret = strat[0].analyzers.ret.get_analysis()
+        performance = strat[0].analyzers.portfolioperformance.get_analysis()
 
-        print('Total Period (Log) Return : %f' % ret['rtot'])
+        print('Total Period (Log) Return : %f' % performance['periodreturn'])
 
-        print('Annualized (Log) Return : %f' % ret['rnorm'])
+        print('Annualized (Log) Return : %f' % performance['annualizedreturn'])
 
-        sharpe = strat[0].analyzers.sharpe.get_analysis()
+        print('Sharpe Ratio: %.2f' % performance['sharperatio'])
 
-        print('Sharpe Ratio: %.2f' %sharpe['sharperatio'])
+        print('MDD: %.2f' % performance['MDD'])
 
-        MDD = strat[0].analyzers.drawdown.get_analysis().max.drawdown
-
-        print('MDD: %.2f' %MDD)
-
-        print('Calmar Ratio : %.2f' % (ret['rnorm'] / (MDD/100)))
+        print('Calmar Ratio : %.2f' % (performance['annualizedreturn'] / performance['MDD']))
 
         tradeanalysis = strat[0].analyzers.tradeanalyzer.get_analysis()
 
