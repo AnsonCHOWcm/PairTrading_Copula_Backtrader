@@ -96,11 +96,11 @@ if __name__ == '__main__':
 
         print('Annualized (Log) Return : %f' % performance['annualizedreturn'])
 
-        print('Sharpe Ratio: %.2f' % performance['sharperatio'])
+        print('Sharpe Ratio: %f' % performance['sharperatio'])
 
-        print('MDD: %.2f' % performance['MDD'])
+        print('MDD: %f' % performance['MDD'])
 
-        print('Calmar Ratio : %.2f' % (performance['annualizedreturn']/performance['MDD']))
+        print('Calmar Ratio : %f' % (performance['annualizedreturn']/performance['MDD']))
 
         tradeanalysis = strat[0].analyzers.tradeanalyzer.get_analysis()
 

@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     optimize = False
 
-    print_log = False
+    print_log = True
 
     if optimize :
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     else :
 
-        params_set = [300*24]
+        params_set = [360*24]
 
     for window in params_set:
 
@@ -95,11 +95,11 @@ if __name__ == '__main__':
 
         print('Annualized (Log) Return : %f' % performance['annualizedreturn'])
 
-        print('Sharpe Ratio: %.2f' % performance['sharperatio'])
+        print('Sharpe Ratio: %f' % performance['sharperatio'])
 
-        print('MDD: %.2f' % performance['MDD'])
+        print('MDD: %f' % performance['MDD'])
 
-        print('Calmar Ratio : %.2f' % (performance['annualizedreturn'] / performance['MDD']))
+        print('Calmar Ratio : %f' % (performance['annualizedreturn'] / performance['MDD']))
 
         tradeanalysis = strat[0].analyzers.tradeanalyzer.get_analysis()
 
